@@ -1,0 +1,7 @@
+{
+  "name": "iamhungry.com.pk",
+  "description": "Premium Pakistani delivery-only restaurant serving Lahore's finest Biryani, Karahi, and traditional delights.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
