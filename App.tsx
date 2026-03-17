@@ -26,9 +26,13 @@ import {
   IceCream,
   CupSoda,
   Beef,
+  Sparkles,
+  Send,
+  Loader2,
 } from 'lucide-react';
 import { MenuItem, CartItem, Category, UserDetails, LAHORE_AREAS, User, SavedAddress, Order } from './types';
 import { MENU_ITEMS as INITIAL_MENU_ITEMS, RESTAURANT_INFO } from './constants';
+import { getMenuRecommendation } from './geminiService';
 
 const categories: (Category | 'All')[] = ['All', 'Appetizers', 'Main Courses', 'Sides', 'Desserts', 'Beverages'];
 
@@ -62,6 +66,12 @@ const App: React.FC = () => {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [profileTab, setProfileTab] = useState<'orders' | 'addresses'>('orders');
   
+  // AI Assistant State
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [assistantPrompt, setAssistantPrompt] = useState('');
+  const [assistantResponse, setAssistantResponse] = useState<string | null>(null);
+  const [isAssistantLoading, setIsAssistantLoading] = useState(false);
+
   // Operating Hours Logic: 12 PM to 12 AM
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -240,6 +250,22 @@ const App: React.FC = () => {
     }, 5000);
   };
 
+  const handleAssistantSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assistantPrompt.trim()) return;
+
+    setIsAssistantLoading(true);
+    setAssistantResponse(null);
+    try {
+      const response = await getMenuRecommendation(assistantPrompt, menuItems);
+      setAssistantResponse(response);
+    } catch (error) {
+      setAssistantResponse("I'm sorry, I couldn't process your request right now. Please try again later.");
+    } finally {
+      setIsAssistantLoading(false);
+    }
+  };
+
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -341,6 +367,12 @@ const App: React.FC = () => {
                 className="px-12 py-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all flex items-center gap-3 group shadow-2xl shadow-emerald-900/60 uppercase tracking-widest text-sm"
               >
                 Start Ordering <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+              <button 
+                onClick={() => setIsAssistantOpen(true)}
+                className="px-12 py-5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-black rounded-2xl transition-all flex items-center gap-3 border border-white/20 shadow-2xl uppercase tracking-widest text-sm"
+              >
+                <Sparkles size={20} className="text-emerald-400" /> Help Me Choose
               </button>
             </div>
           </div>
@@ -851,6 +883,72 @@ const App: React.FC = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Assistant Sidebar */}
+      {isAssistantOpen && (
+        <div className="fixed inset-0 z-[100] flex justify-end">
+          <div className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm" onClick={() => setIsAssistantOpen(false)} />
+          <div className="relative w-full max-w-lg bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="p-8 border-b flex items-center justify-between bg-emerald-900 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold font-serif">Menu Assistant</h2>
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold">Powered by iamhungry AI</p>
+                </div>
+              </div>
+              <button onClick={() => setIsAssistantOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors"><X size={24} /></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-stone-50">
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100 italic text-stone-600 leading-relaxed">
+                "As-salamu alaykum! I'm your personal Lahori food guide. Tell me what you're craving or what your mood is, and I'll recommend the perfect feast from our kitchen."
+              </div>
+
+              {assistantResponse && (
+                <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sparkles size={16} className="text-emerald-600" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Recommendation</span>
+                  </div>
+                  <p className="text-stone-800 leading-relaxed font-medium">
+                    {assistantResponse}
+                  </p>
+                </div>
+              )}
+
+              {isAssistantLoading && (
+                <div className="flex flex-col items-center justify-center py-12 text-emerald-600 gap-4">
+                  <Loader2 size={40} className="animate-spin" />
+                  <p className="text-xs font-black uppercase tracking-widest animate-pulse">Consulting the Chefs...</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-8 border-t bg-white">
+              <form onSubmit={handleAssistantSubmit} className="relative">
+                <input 
+                  type="text"
+                  value={assistantPrompt}
+                  onChange={(e) => setAssistantPrompt(e.target.value)}
+                  placeholder="e.g., I want something spicy and rich for 2 people..."
+                  className="w-full px-6 py-5 bg-stone-100 border border-stone-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-medium pr-16"
+                />
+                <button 
+                  type="submit"
+                  disabled={isAssistantLoading || !assistantPrompt.trim()}
+                  className="absolute right-2 top-2 bottom-2 px-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send size={20} />
+                </button>
+              </form>
+              <p className="text-[10px] text-stone-400 text-center mt-4 uppercase tracking-widest font-bold">Ask about spice levels, portions, or pairings!</p>
+            </div>
           </div>
         </div>
       )}
