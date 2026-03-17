@@ -66,13 +66,21 @@ const App: React.FC = () => {
   });
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [profileTab, setProfileTab] = useState<'orders' | 'addresses'>('orders');
   
   // Operating Hours Logic: 12 PM to 12 AM
-  const isKitchenOpen = useMemo(() => {
-    const now = new Date();
-    const hour = now.getHours();
-    return hour >= 12 && hour < 24;
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
+
+  const isKitchenOpen = useMemo(() => {
+    const hour = currentTime.getHours();
+    return hour >= 12 && hour < 24;
+  }, [currentTime]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('ih_user');
@@ -125,6 +133,17 @@ const App: React.FC = () => {
     setCurrentUser(null);
     localStorage.removeItem('ih_user');
     setIsProfileOpen(false);
+    setProfileTab('orders');
+  };
+
+  const deleteAddress = (id: string) => {
+    if (!currentUser) return;
+    const updatedUser = {
+      ...currentUser,
+      savedAddresses: currentUser.savedAddresses.filter(a => a.id !== id)
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('ih_user', JSON.stringify(updatedUser));
   };
 
   const selectAddress = (addr: SavedAddress) => {
@@ -161,15 +180,47 @@ const App: React.FC = () => {
 
   const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
 
+  const [saveAddress, setSaveAddress] = useState(false);
+
   const handleCheckout = (e: React.FormEvent) => {
     e.preventDefault();
+    setCheckoutError(null);
+
     if (!isKitchenOpen) {
-      alert("Kitchen is closed. Please come back between 12 PM and 12 AM.");
+      setCheckoutError("Our kitchen is currently closed. We serve from 12:00 PM to 12:00 AM.");
       return;
     }
-    if (!LAHORE_AREAS.includes(userDetails.area)) {
-      alert("We currently only deliver within Lahore. Please select a valid Lahore area.");
+
+    if (!userDetails.name.trim() || !userDetails.phone.trim() || !userDetails.address.trim()) {
+      setCheckoutError("Please fill in all the required fields.");
       return;
+    }
+
+    if (!userDetails.area || !LAHORE_AREAS.includes(userDetails.area)) {
+      setCheckoutError("We currently only deliver within Lahore. Please select a valid Lahore area.");
+      return;
+    }
+
+    // Save address if requested
+    if (saveAddress && currentUser) {
+      const isDuplicate = currentUser.savedAddresses.some(
+        a => a.address === userDetails.address && a.area === userDetails.area
+      );
+      
+      if (!isDuplicate) {
+        const newAddr: SavedAddress = {
+          id: Math.random().toString(36).substr(2, 9),
+          label: userDetails.area,
+          area: userDetails.area,
+          address: userDetails.address
+        };
+        const updatedUser = {
+          ...currentUser,
+          savedAddresses: [...currentUser.savedAddresses, newAddr]
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('ih_user', JSON.stringify(updatedUser));
+      }
     }
 
     const newOrder: Order = {
@@ -438,10 +489,20 @@ const App: React.FC = () => {
               </div>
               
               <div className="space-y-2 flex-1">
-                <button className="w-full flex items-center gap-3 px-5 py-4 bg-white shadow-sm text-emerald-600 font-black rounded-2xl transition-all uppercase tracking-widest text-[11px]">
+                <button 
+                  onClick={() => setProfileTab('orders')}
+                  className={`w-full flex items-center gap-3 px-5 py-4 font-black rounded-2xl transition-all uppercase tracking-widest text-[11px] ${
+                    profileTab === 'orders' ? 'bg-white shadow-sm text-emerald-600' : 'text-stone-500 hover:bg-white hover:text-emerald-600'
+                  }`}
+                >
                   <History size={16} /> Order History
                 </button>
-                <button className="w-full flex items-center gap-3 px-5 py-4 text-stone-500 hover:bg-white hover:text-emerald-600 font-black rounded-2xl transition-all uppercase tracking-widest text-[11px]">
+                <button 
+                  onClick={() => setProfileTab('addresses')}
+                  className={`w-full flex items-center gap-3 px-5 py-4 font-black rounded-2xl transition-all uppercase tracking-widest text-[11px] ${
+                    profileTab === 'addresses' ? 'bg-white shadow-sm text-emerald-600' : 'text-stone-500 hover:bg-white hover:text-emerald-600'
+                  }`}
+                >
                   <Home size={16} /> My Addresses
                 </button>
               </div>
@@ -456,46 +517,77 @@ const App: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto p-12">
               <div className="flex items-center justify-between mb-10">
-                <h3 className="text-4xl font-serif font-bold">Past Orders</h3>
+                <h3 className="text-4xl font-serif font-bold">{profileTab === 'orders' ? 'Past Orders' : 'My Addresses'}</h3>
                 <button onClick={() => setIsProfileOpen(false)} className="p-3 hover:bg-stone-100 rounded-full transition-colors"><X /></button>
               </div>
 
-              {orderHistory.filter(o => o.userId === currentUser.id).length === 0 ? (
-                <div className="h-64 flex flex-col items-center justify-center text-stone-400 italic">
-                  <History size={48} className="mb-4 opacity-20" />
-                  No orders placed yet.
-                </div>
-              ) : (
-                <div className="space-y-8">
-                  {orderHistory.filter(o => o.userId === currentUser.id).map(order => (
-                    <div key={order.id} className="p-8 border border-stone-100 rounded-[2rem] bg-stone-50/50 hover:border-emerald-200 transition-all">
-                      <div className="flex flex-wrap items-center justify-between gap-6 mb-6">
-                        <div>
-                          <span className="text-[10px] font-black uppercase text-stone-400 block mb-1 tracking-[0.2em]">Order ID</span>
-                          <span className="font-bold text-stone-900 text-lg">#{order.id}</span>
-                        </div>
-                        <div className="px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                          <CheckCircle2 size={12} /> {order.status}
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] font-black uppercase text-stone-400 block mb-1 tracking-[0.2em]">Total Bill</span>
-                          <span className="font-bold text-stone-900 text-lg">{order.total} PKR</span>
-                        </div>
-                      </div>
-                      <div className="text-sm text-stone-600 space-y-2 mb-6 p-6 bg-white rounded-2xl border border-stone-100">
-                        <p className="flex items-center gap-3 font-medium"><MapPin size={14} className="text-emerald-600"/> {order.deliveryArea}, {order.deliveryAddress}</p>
-                        <p className="flex items-center gap-3 font-medium"><Clock size={14} className="text-emerald-600"/> {new Date(order.date).toLocaleDateString()} at {new Date(order.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                      </div>
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        {order.items.map((item, i) => (
-                          <div key={i} className="h-10 px-3 flex items-center justify-center bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold border border-emerald-100 flex items-center gap-2">
-                            <CategoryIcon category={item.category} size={14} />
-                            {item.quantity}x {item.name}
+              {profileTab === 'orders' ? (
+                orderHistory.filter(o => o.userId === currentUser.id).length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center text-stone-400 italic">
+                    <History size={48} className="mb-4 opacity-20" />
+                    No orders placed yet.
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {orderHistory.filter(o => o.userId === currentUser.id).map(order => (
+                      <div key={order.id} className="p-8 border border-stone-100 rounded-[2rem] bg-stone-50/50 hover:border-emerald-200 transition-all">
+                        <div className="flex flex-wrap items-center justify-between gap-6 mb-6">
+                          <div>
+                            <span className="text-[10px] font-black uppercase text-stone-400 block mb-1 tracking-[0.2em]">Order ID</span>
+                            <span className="font-bold text-stone-900 text-lg">#{order.id}</span>
                           </div>
-                        ))}
+                          <div className="px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                            <CheckCircle2 size={12} /> {order.status}
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-black uppercase text-stone-400 block mb-1 tracking-[0.2em]">Total Bill</span>
+                            <span className="font-bold text-stone-900 text-lg">{order.total} PKR</span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-stone-600 space-y-2 mb-6 p-6 bg-white rounded-2xl border border-stone-100">
+                          <p className="flex items-center gap-3 font-medium"><MapPin size={14} className="text-emerald-600"/> {order.deliveryArea}, {order.deliveryAddress}</p>
+                          <p className="flex items-center gap-3 font-medium"><Clock size={14} className="text-emerald-600"/> {new Date(order.date).toLocaleDateString()} at {new Date(order.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                        </div>
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          {order.items.map((item, i) => (
+                            <div key={i} className="h-10 px-3 flex items-center justify-center bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-bold border border-emerald-100 flex items-center gap-2">
+                              <CategoryIcon category={item.category} size={14} />
+                              {item.quantity}x {item.name}
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="space-y-6">
+                  {currentUser.savedAddresses.length === 0 ? (
+                    <div className="h-64 flex flex-col items-center justify-center text-stone-400 italic">
+                      <Home size={48} className="mb-4 opacity-20" />
+                      No saved addresses yet.
                     </div>
-                  ))}
+                  ) : (
+                    currentUser.savedAddresses.map(addr => (
+                      <div key={addr.id} className="p-8 border border-stone-100 rounded-[2rem] bg-stone-50/50 flex items-center justify-between group hover:border-emerald-200 transition-all">
+                        <div className="flex items-center gap-6">
+                          <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm border border-stone-100">
+                            <MapPin size={24} />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-stone-900 text-lg">{addr.label}</h4>
+                            <p className="text-sm text-stone-500 font-medium">{addr.address}</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => deleteAddress(addr.id)}
+                          className="p-4 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>
@@ -673,6 +765,35 @@ const App: React.FC = () => {
               </div>
             ) : (
               <form onSubmit={handleCheckout} className="p-10 overflow-y-auto space-y-10">
+                {checkoutError && (
+                  <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-3 text-sm font-bold animate-in fade-in slide-in-from-top-4">
+                    <AlertCircle size={18} />
+                    {checkoutError}
+                  </div>
+                )}
+
+                {currentUser && currentUser.savedAddresses.length > 0 && (
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block">Use a Saved Address</label>
+                    <div className="flex flex-wrap gap-3">
+                      {currentUser.savedAddresses.map(addr => (
+                        <button
+                          key={addr.id}
+                          type="button"
+                          onClick={() => selectAddress(addr)}
+                          className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
+                            userDetails.address === addr.address && userDetails.area === addr.area
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-600/20'
+                              : 'bg-white text-stone-600 border-stone-200 hover:border-emerald-300'
+                          }`}
+                        >
+                          <Home size={14} /> {addr.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block">Recipient Name</label>
@@ -720,6 +841,25 @@ const App: React.FC = () => {
                     onChange={e => setUserDetails({...userDetails, address: e.target.value})}
                   ></textarea>
                 </div>
+
+                {currentUser && (
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="relative">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only"
+                        checked={saveAddress}
+                        onChange={e => setSaveAddress(e.target.checked)}
+                      />
+                      <div className={`w-6 h-6 rounded-lg border-2 transition-all flex items-center justify-center ${
+                        saveAddress ? 'bg-emerald-600 border-emerald-600' : 'bg-white border-stone-200 group-hover:border-emerald-300'
+                      }`}>
+                        {saveAddress && <CheckCircle2 size={14} className="text-white" />}
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-stone-600 select-none">Save this address for future orders</span>
+                  </label>
+                )}
 
                 <div className="p-10 bg-emerald-950 text-white rounded-[3rem] flex flex-col md:flex-row items-center justify-between gap-8 shadow-3xl shadow-emerald-900/40 border-t-4 border-emerald-500">
                   <div className="text-center md:text-left">
