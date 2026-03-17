@@ -11,7 +11,6 @@ import {
   Mail, 
   ChefHat, 
   Clock, 
-  Truck,
   MessageCircle,
   ArrowRight,
   User as UserIcon,
@@ -27,13 +26,9 @@ import {
   IceCream,
   CupSoda,
   Beef,
-  Cookie
 } from 'lucide-react';
 import { MenuItem, CartItem, Category, UserDetails, LAHORE_AREAS, User, SavedAddress, Order } from './types';
 import { MENU_ITEMS as INITIAL_MENU_ITEMS, RESTAURANT_INFO } from './constants';
-import { getFoodRecommendation } from './geminiService';
-
-const apiKey = import.meta.env.VITE_API_KEY;
 
 const categories: (Category | 'All')[] = ['All', 'Appetizers', 'Main Courses', 'Sides', 'Desserts', 'Beverages'];
 
@@ -58,10 +53,6 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
-  const [mood, setMood] = useState('');
-  const [recommendation, setRecommendation] = useState('');
-  const [isLoadingRec, setIsLoadingRec] = useState(false);
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '', phone: '' });
   const [userDetails, setUserDetails] = useState<UserDetails>({
     name: '', phone: '', email: '', area: '', address: ''
@@ -249,14 +240,6 @@ const App: React.FC = () => {
     }, 5000);
   };
 
-  const handleRecommend = async () => {
-    if (!mood) return;
-    setIsLoadingRec(true);
-    const rec = await getFoodRecommendation(mood);
-    setRecommendation(rec || '');
-    setIsLoadingRec(false);
-  };
-
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -358,12 +341,6 @@ const App: React.FC = () => {
                 className="px-12 py-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all flex items-center gap-3 group shadow-2xl shadow-emerald-900/60 uppercase tracking-widest text-sm"
               >
                 Start Ordering <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-              </button>
-              <button 
-                onClick={() => setIsAssistantOpen(true)}
-                className="px-10 py-5 bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md font-bold rounded-2xl transition-all uppercase tracking-widest text-xs"
-              >
-                Help Me Choose
               </button>
             </div>
           </div>
@@ -874,70 +851,6 @@ const App: React.FC = () => {
                 </div>
               </form>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* AI Assistant FAB */}
-      <button 
-        onClick={() => setIsAssistantOpen(true)}
-        className="fixed bottom-12 right-12 w-20 h-20 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2rem] shadow-2xl flex items-center justify-center transition-all z-40 group ring-4 ring-emerald-600/20 active:scale-95"
-      >
-        <MessageCircle size={36} className="group-hover:scale-110 transition-transform" />
-      </button>
-
-      {/* AI Assistant Modal */}
-      {isAssistantOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-stone-950/70 backdrop-blur-md" onClick={() => setIsAssistantOpen(false)} />
-          <div className="relative w-full max-w-lg bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="bg-emerald-600 p-12 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-              <button onClick={() => setIsAssistantOpen(false)} className="absolute top-8 right-8 p-3 hover:bg-emerald-500 rounded-full transition-colors"><X /></button>
-              <h4 className="text-4xl font-serif font-bold mb-4 tracking-tight">Chef Gemini</h4>
-              <p className="opacity-90 text-sm leading-relaxed italic font-medium">"Tell me your cravings, and I'll find your perfect Lahori feast."</p>
-            </div>
-            <div className="p-12 space-y-10">
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-stone-400 uppercase tracking-[0.3em] block">How's your mood?</label>
-                <div className="flex gap-4">
-                  <input 
-                    type="text" 
-                    value={mood}
-                    onChange={e => setMood(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleRecommend()}
-                    className="flex-1 px-6 py-5 bg-stone-50 border border-stone-200 rounded-3xl outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold"
-                    placeholder="e.g. Rainy evening, craving spice"
-                  />
-                  <button 
-                    onClick={handleRecommend}
-                    disabled={isLoadingRec || !mood}
-                    className="p-5 bg-emerald-600 text-white rounded-3xl disabled:opacity-50 hover:bg-emerald-700 transition-all shadow-xl active:scale-95"
-                  >
-                    <ArrowRight />
-                  </button>
-                </div>
-              </div>
-
-              {isLoadingRec && (
-                <div className="flex items-center gap-4 text-stone-500 py-6 px-4 bg-stone-50 rounded-3xl border border-stone-100">
-                  <div className="flex gap-2">
-                    <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full animate-bounce"></div>
-                    <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full animate-bounce delay-150"></div>
-                    <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full animate-bounce delay-300"></div>
-                  </div>
-                  <span className="font-black text-[10px] tracking-[0.2em] uppercase opacity-70">Chef is consulting the menu...</span>
-                </div>
-              )}
-
-              {recommendation && !isLoadingRec && (
-                <div className="bg-emerald-50 p-10 rounded-[3rem] border border-emerald-100 text-stone-800 leading-relaxed font-bold italic animate-in fade-in slide-in-from-bottom-8 relative">
-                  <div className="absolute top-0 left-10 -mt-4 w-8 h-8 bg-emerald-50 rotate-45 border-l border-t border-emerald-100"></div>
-                  <ChefHat className="text-emerald-600 mb-6 opacity-40" size={40} />
-                  <p className="text-lg leading-relaxed text-emerald-950 font-medium">"{recommendation}"</p>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
