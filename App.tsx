@@ -33,6 +33,8 @@ import { MenuItem, CartItem, Category, UserDetails, LAHORE_AREAS, User, SavedAdd
 import { MENU_ITEMS as INITIAL_MENU_ITEMS, RESTAURANT_INFO } from './constants';
 import { getFoodRecommendation } from './geminiService';
 
+const apiKey = import.meta.env.VITE_API_KEY;
+
 const categories: (Category | 'All')[] = ['All', 'Appetizers', 'Main Courses', 'Sides', 'Desserts', 'Beverages'];
 
 const CategoryIcon: React.FC<{ category: Category; size?: number; className?: string }> = ({ category, size = 48, className = "" }) => {
